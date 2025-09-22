@@ -1,0 +1,49 @@
+    if (size(dh_list) != 7)
+    {
+        std::cerr << "dimension error" << std::endl;
+    }
+    Eigen::Matrix<double, 6, 7> jacobian_eigen = Jacobian(dh_list, q);
+
+    Eigen::Matrix<double, 3, 7> J_trans = jacobian_eigen.block(0, 0, 3, 7);
+    double manipulability = sqrt((J_trans * J_trans.transpose()).determinant());
+
+    Eigen::Matrix<double, 3, 3> B = (J_trans * J_trans.transpose()).inverse();
+
+    std::vector<Eigen::Matrix<double, 7, 7>> H(3, Eigen::Matrix<double, 7, 7>::Zero());
+
+    for (int i = 0; i < 7; i++)
+        for (int j = i; j < 7; j++)
+        {
+            Vector3d a;
+            Vector3d b;
+
+            a << jacobian_eigen(3, i), jacobian_eigen(4, i), jacobian_eigen(5, i);
+            b << jacobian_eigen(0, j), jacobian_eigen(1, j), jacobian_eigen(2, j);
+            Matrix<double, 3, 1> h;
+            h << a.y() * b.z() - a.z() * b.y(),
+                a.z() * b.x() - a.x() * b.z(),
+                a.x() * b.y() - a.y() * b.x();
+
+            for (int k = 0; k < 3; k++)
+            {
+                H[k](j, i) = h(k);
+                H[k](i, j) = h(k);
+            }
+        }
+
+    Matrix<double, 7, 1> Jm;
+
+    for (int i = 0; i < 7; i++)
+    {
+        Matrix<double, 3, 7> H0;
+        for (int a = 0; a < 3; a++)
+            for (int b = 0; b < 7; b++)
+                H0(a, b) = H[a](b, i);
+
+        Eigen::Matrix<double, 3, 3> C = J_trans * H0.transpose();
+
+        Eigen::Map<Eigen::VectorXd> C_reshape(C.data(), C.size());
+        Eigen::Map<Eigen::VectorXd> B_reshape(B.data(), B.size());
+        Jm(i) = manipulability * C_reshape.transpose() * B_reshape;
+    }
+    return Jm;
